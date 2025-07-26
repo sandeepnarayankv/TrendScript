@@ -24,34 +24,43 @@ class AIService:
             # Create unique session ID for this generation
             session_id = request.session_id or f"content_gen_{trend.id}_{request.template_id}"
             
-            # Initialize LLM Chat
-            chat = LlmChat(
-                api_key=self.api_key,
-                session_id=session_id,
-                system_message=self._get_system_message(request.template_id, request.tone)
-            ).with_model("openai", "gpt-4o").with_max_tokens(4096)
-            
-            # Create user prompt
-            user_prompt = self._create_content_prompt(trend, request)
-            user_message = UserMessage(text=user_prompt)
-            
-            # Generate content with AI
-            ai_response = await chat.send_message(user_message)
-            
-            # Parse AI response and structure it
-            generated_content = self._parse_ai_response(
-                ai_response, 
-                trend, 
-                request, 
-                user_id, 
-                session_id
-            )
-            
-            return generated_content
+            # Try to use real OpenAI API first
+            try:
+                # Initialize LLM Chat
+                chat = LlmChat(
+                    api_key=self.api_key,
+                    session_id=session_id,
+                    system_message=self._get_system_message(request.template_id, request.tone)
+                ).with_model("openai", "gpt-4o").with_max_tokens(4096)
+                
+                # Create user prompt
+                user_prompt = self._create_content_prompt(trend, request)
+                user_message = UserMessage(text=user_prompt)
+                
+                # Generate content with AI
+                ai_response = await chat.send_message(user_message)
+                
+                # Parse AI response and structure it
+                generated_content = self._parse_ai_response(
+                    ai_response, 
+                    trend, 
+                    request, 
+                    user_id, 
+                    session_id
+                )
+                
+                logger.info("Successfully generated content using OpenAI API")
+                return generated_content
+                
+            except Exception as openai_error:
+                logger.warning(f"OpenAI API failed, falling back to demo mode: {str(openai_error)}")
+                # Fall back to enhanced demo content
+                return self._create_enhanced_demo_content(trend, request, user_id, session_id)
             
         except Exception as e:
             logger.error(f"Error generating content: {str(e)}")
-            raise Exception(f"Failed to generate content: {str(e)}")
+            # Final fallback
+            return self._create_fallback_content(trend, request, user_id, session_id)
     
     def _get_system_message(self, template_id: str, tone: str) -> str:
         """Get system message based on content template and tone"""

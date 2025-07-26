@@ -280,6 +280,216 @@ class AIService:
             difficulty="Beginner-friendly"
         )
 
+    def _create_enhanced_demo_content(
+        self, 
+        trend: Trend, 
+        request: ContentGenerationRequest, 
+        user_id: str,
+        session_id: str
+    ) -> GeneratedContent:
+        """Create enhanced demo content based on trend and template"""
+        
+        # Template-specific content generation
+        template_content = {
+            "youtube-explainer": {
+                "title": f"{trend.topic}: The Complete Guide for 2025",
+                "hook": f"What if I told you that {trend.topic.lower()} could transform your entire approach to content creation in the next 10 minutes?",
+                "outline": [
+                    {
+                        "section": "Hook & Problem Setup",
+                        "duration": "0:00 - 1:30",
+                        "content": [
+                            f"Start with compelling statistic about {trend.topic}",
+                            "Share a personal story or common pain point",
+                            "Promise specific value and transformation"
+                        ]
+                    },
+                    {
+                        "section": "Understanding the Trend",
+                        "duration": "1:30 - 4:00",
+                        "content": [
+                            f"What exactly is {trend.topic} and why it matters",
+                            "Current market landscape and opportunities",
+                            "Common misconceptions debunked"
+                        ]
+                    },
+                    {
+                        "section": "Practical Implementation",
+                        "duration": "4:00 - 10:00",
+                        "content": [
+                            "Step-by-step process breakdown",
+                            "Real-world examples and case studies",
+                            "Tools and resources needed"
+                        ]
+                    },
+                    {
+                        "section": "Results & Next Steps",
+                        "duration": "10:00 - 12:00",
+                        "content": [
+                            "Expected outcomes and timeline",
+                            "Common pitfalls to avoid",
+                            "Action items for viewers"
+                        ]
+                    }
+                ],
+                "estimatedViews": "25K - 75K",
+                "difficulty": "Beginner-friendly"
+            },
+            "blog-post": {
+                "title": f"The Ultimate Guide to {trend.topic}: Everything You Need to Know in 2025",
+                "hook": f"In the rapidly evolving landscape of digital content, {trend.topic.lower()} has emerged as a game-changing trend that's reshaping how creators approach their craft.",
+                "outline": [
+                    {
+                        "section": "Introduction",
+                        "duration": "Opening",
+                        "content": [
+                            f"Define {trend.topic} and its significance",
+                            "Why this trend matters now",
+                            "What readers will learn"
+                        ]
+                    },
+                    {
+                        "section": "Deep Dive Analysis",
+                        "duration": "Main Content",
+                        "content": [
+                            "Historical context and evolution",
+                            "Current market dynamics",
+                            "Key players and innovations"
+                        ]
+                    },
+                    {
+                        "section": "Practical Applications",
+                        "duration": "Implementation",
+                        "content": [
+                            "How to get started",
+                            "Best practices and strategies",
+                            "Real-world success stories"
+                        ]
+                    },
+                    {
+                        "section": "Future Outlook",
+                        "duration": "Conclusion",
+                        "content": [
+                            "Predictions and trends",
+                            "Opportunities ahead",
+                            "Final recommendations"
+                        ]
+                    }
+                ],
+                "estimatedViews": "15K - 40K",
+                "difficulty": "Intermediate"
+            },
+            "social-thread": {
+                "title": f"🚀 {trend.topic}: The Thread You've Been Waiting For",
+                "hook": f"Everyone's talking about {trend.topic.lower()}, but here's what they're not telling you... 🧵",
+                "outline": [
+                    {
+                        "section": "Hook Tweet",
+                        "duration": "Tweet 1",
+                        "content": [
+                            f"Attention-grabbing statement about {trend.topic}",
+                            "Promise of valuable insights",
+                            "Thread emoji to indicate continuation"
+                        ]
+                    },
+                    {
+                        "section": "Problem/Opportunity",
+                        "duration": "Tweets 2-3",
+                        "content": [
+                            "Identify the challenge or opportunity",
+                            "Share relevant statistics or data",
+                            "Connect with audience pain points"
+                        ]
+                    },
+                    {
+                        "section": "Solution/Insights",
+                        "duration": "Tweets 4-8",
+                        "content": [
+                            "Break down key insights",
+                            "Share actionable tips",
+                            "Include relevant examples"
+                        ]
+                    },
+                    {
+                        "section": "Call to Action",
+                        "duration": "Final Tweet",
+                        "content": [
+                            "Summarize key takeaways",
+                            "Ask for engagement (retweets, likes)",
+                            "Promote related content or services"
+                        ]
+                    }
+                ],
+                "estimatedViews": "50K - 200K",
+                "difficulty": "Beginner-friendly"
+            }
+        }
+        
+        # Get template-specific content or use default
+        content_data = template_content.get(request.template_id, template_content["youtube-explainer"])
+        
+        # Adjust content based on tone
+        tone_adjustments = {
+            "professional": "authoritative and data-driven",
+            "casual": "friendly and conversational",
+            "humorous": "entertaining with appropriate humor",
+            "educational": "teaching-focused with clear explanations",
+            "controversial": "provocative yet respectful",
+            "inspirational": "motivational and uplifting"
+        }
+        
+        # Generate key points based on trend insights
+        key_points = [
+            f"{trend.topic} is gaining significant momentum across platforms",
+            f"Early adopters are seeing {['substantial growth', 'impressive results', 'competitive advantages'][hash(trend.id) % 3]}",
+            f"The trend aligns perfectly with current market demands",
+            f"Implementation requires {['strategic planning', 'creative thinking', 'technical expertise'][hash(trend.id) % 3]}"
+        ]
+        
+        # Add custom insights if available
+        if trend.keyInsights and trend.keyInsights[0] != "Analysis unavailable":
+            key_points = trend.keyInsights[:4]
+        
+        # Generate SEO keywords
+        seo_keywords = [
+            trend.topic.lower().replace(" ", " "),
+            f"{trend.topic.lower()} 2025",
+            f"{trend.topic.lower()} guide",
+            f"{trend.topic.lower()} strategy"
+        ]
+        
+        # Add category-specific keywords
+        if trend.category.lower() == "technology":
+            seo_keywords.extend(["tech trends", "innovation", "digital transformation"])
+        elif trend.category.lower() == "business":
+            seo_keywords.extend(["business strategy", "growth", "entrepreneurship"])
+        
+        # Convert outline to ContentSection objects
+        outline_sections = []
+        for section in content_data["outline"]:
+            outline_sections.append(ContentSection(
+                section=section["section"],
+                duration=section["duration"],
+                content=section["content"]
+            ))
+        
+        return GeneratedContent(
+            user_id=user_id,
+            session_id=session_id,
+            trend_id=trend.id,
+            template_id=request.template_id,
+            tone=request.tone,
+            custom_prompt=request.custom_prompt,
+            title=content_data["title"],
+            hook=content_data["hook"],
+            outline=outline_sections,
+            keyPoints=key_points,
+            seoKeywords=seo_keywords[:6],
+            hashtags=trend.hashtags[:5] if trend.hashtags else [f"#{trend.topic.replace(' ', '')}", "#ContentCreation", "#2025Trends"],
+            estimatedViews=content_data["estimatedViews"],
+            difficulty=content_data["difficulty"]
+        )
+
     async def analyze_trend_potential(self, topic: str, platform_data: Dict[str, Any]) -> Dict[str, Any]:
         """Analyze trend potential using AI"""
         

@@ -1,7 +1,7 @@
 import logging
 from typing import List, Dict, Any, Optional
 from datetime import datetime, timedelta
-from ..models import Trend, TrendEngagement, PlatformEngagement
+from models import Trend, TrendEngagement, PlatformEngagement
 from .ai_service import AIService
 import random
 

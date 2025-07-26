@@ -2,7 +2,7 @@ import os
 import logging
 from typing import Dict, List, Any
 from emergentintegrations.llm.chat import LlmChat, UserMessage
-from ..models import Trend, ContentGenerationRequest, GeneratedContent, ContentSection
+from models import Trend, ContentGenerationRequest, GeneratedContent, ContentSection
 
 logger = logging.getLogger(__name__)
 

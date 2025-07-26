@@ -6,7 +6,7 @@ import { Textarea } from './ui/textarea';
 import { Badge } from './ui/badge';
 import { Progress } from './ui/progress';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { contentTemplates, toneOptions, mockGeneratedContent } from '../data/mockData';
+import apiService from '../services/api';
 import { 
   ArrowLeft, 
   Wand2, 
@@ -21,16 +21,47 @@ import {
   FileText,
   MessageSquare,
   Mic,
-  Smartphone
+  Smartphone,
+  AlertCircle,
+  Loader2
 } from 'lucide-react';
 
 const ScriptGenerator = ({ trend, onBack }) => {
+  const [contentTemplates, setContentTemplates] = useState([]);
+  const [toneOptions, setToneOptions] = useState([]);
   const [selectedTemplate, setSelectedTemplate] = useState('');
   const [selectedTone, setSelectedTone] = useState('');
   const [customPrompt, setCustomPrompt] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const [generatedContent, setGeneratedContent] = useState(null);
   const [progress, setProgress] = useState(0);
+  const [error, setError] = useState(null);
+  const [loadingData, setLoadingData] = useState(true);
+
+  // Load templates and tone options on mount
+  useEffect(() => {
+    loadInitialData();
+  }, []);
+
+  const loadInitialData = async () => {
+    try {
+      setLoadingData(true);
+      setError(null);
+
+      const [templates, tones] = await Promise.all([
+        apiService.getContentTemplates(),
+        apiService.getToneOptions()
+      ]);
+
+      setContentTemplates(templates);
+      setToneOptions(tones);
+    } catch (err) {
+      console.error('Error loading initial data:', err);
+      setError('Failed to load configuration data. Please try again.');
+    } finally {
+      setLoadingData(false);
+    }
+  };
 
   const getTemplateIcon = (templateId) => {
     switch (templateId) {
@@ -46,37 +77,100 @@ const ScriptGenerator = ({ trend, onBack }) => {
   const generateContent = async () => {
     if (!selectedTemplate || !selectedTone) return;
     
-    setIsGenerating(true);
-    setProgress(0);
-    
-    // Simulate AI generation progress
-    const intervals = [10, 25, 45, 70, 85, 100];
-    const messages = [
-      "Analyzing trend data...",
-      "Cross-referencing platforms...",
-      "Generating outline structure...",
-      "Optimizing for engagement...",
-      "Adding SEO keywords...",
-      "Finalizing content script..."
-    ];
-    
-    for (let i = 0; i < intervals.length; i++) {
-      await new Promise(resolve => setTimeout(resolve, 800));
-      setProgress(intervals[i]);
+    try {
+      setIsGenerating(true);
+      setProgress(0);
+      setError(null);
+      
+      // Simulate progress updates
+      const progressInterval = setInterval(() => {
+        setProgress(prev => {
+          if (prev >= 90) return prev;
+          return prev + Math.random() * 20;
+        });
+      }, 1000);
+
+      const requestData = {
+        trend_id: trend.id,
+        template_id: selectedTemplate,
+        tone: selectedTone,
+        custom_prompt: customPrompt.trim() || null,
+        session_id: `script_gen_${Date.now()}`
+      };
+
+      const response = await apiService.generateContent(requestData);
+      
+      clearInterval(progressInterval);
+      setProgress(100);
+      
+      setTimeout(() => {
+        setGeneratedContent(response.content);
+        setIsGenerating(false);
+      }, 500);
+
+    } catch (err) {
+      console.error('Error generating content:', err);
+      setError(err.message || 'Failed to generate content. Please try again.');
+      setIsGenerating(false);
+      setProgress(0);
     }
-    
-    // Use mock generated content
-    setGeneratedContent(mockGeneratedContent);
-    setIsGenerating(false);
   };
 
   const copyToClipboard = (text) => {
-    navigator.clipboard.writeText(text);
-    // You could add a toast notification here
+    navigator.clipboard.writeText(text).then(() => {
+      // You could add a toast notification here
+      console.log('Copied to clipboard');
+    });
   };
 
   const selectedTemplateData = contentTemplates.find(t => t.id === selectedTemplate);
   const selectedToneData = toneOptions.find(t => t.id === selectedTone);
+
+  if (loadingData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4" />
+              Back to Trends
+            </Button>
+          </div>
+          <Card>
+            <CardContent className="p-8 text-center">
+              <Loader2 className="w-8 h-8 animate-spin mx-auto mb-4" />
+              <p>Loading configuration...</p>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (error && !generatedContent) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 p-6">
+        <div className="max-w-4xl mx-auto space-y-6">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={onBack}>
+              <ArrowLeft className="w-4 h-4" />
+              Back to Trends
+            </Button>
+          </div>
+          <Card className="bg-red-50 border-red-200">
+            <CardContent className="p-8 text-center">
+              <AlertCircle className="w-8 h-8 text-red-500 mx-auto mb-4" />
+              <h3 className="text-lg font-semibold text-red-800 mb-2">Error</h3>
+              <p className="text-red-700 mb-4">{error}</p>
+              <Button onClick={loadInitialData} variant="outline">
+                Try Again
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
 
   if (generatedContent) {
     return (
@@ -136,7 +230,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                   <div>
                     <h3 className="font-semibold text-gray-800 mb-4">Content Outline</h3>
                     <div className="space-y-4">
-                      {generatedContent.outline.map((section, index) => (
+                      {generatedContent.outline?.map((section, index) => (
                         <Card key={index} className="border-l-4 border-l-purple-500">
                           <CardContent className="p-4">
                             <div className="flex items-center justify-between mb-2">
@@ -146,7 +240,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                               </Badge>
                             </div>
                             <ul className="space-y-1">
-                              {section.content.map((item, itemIndex) => (
+                              {section.content?.map((item, itemIndex) => (
                                 <li key={itemIndex} className="text-sm text-gray-600 flex items-start gap-2">
                                   <CheckCircle className="w-3 h-3 text-green-500 mt-0.5 flex-shrink-0" />
                                   {item}
@@ -170,7 +264,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                   <CardTitle className="text-lg">Key Points to Cover</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
-                  {generatedContent.keyPoints.map((point, index) => (
+                  {generatedContent.keyPoints?.map((point, index) => (
                     <div key={index} className="flex items-start gap-2">
                       <Target className="w-4 h-4 text-purple-500 mt-0.5 flex-shrink-0" />
                       <span className="text-sm text-gray-700">{point}</span>
@@ -188,7 +282,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                   <div>
                     <h4 className="font-medium text-gray-700 mb-2">Keywords</h4>
                     <div className="flex flex-wrap gap-2">
-                      {generatedContent.seoKeywords.map((keyword, index) => (
+                      {generatedContent.seoKeywords?.map((keyword, index) => (
                         <Badge key={index} variant="secondary" className="text-xs">
                           {keyword}
                         </Badge>
@@ -198,7 +292,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                   <div>
                     <h4 className="font-medium text-gray-700 mb-2">Hashtags</h4>
                     <div className="flex flex-wrap gap-2">
-                      {generatedContent.hashtags.map((hashtag, index) => (
+                      {generatedContent.hashtags?.map((hashtag, index) => (
                         <Badge key={index} variant="outline" className="text-xs">
                           {hashtag}
                         </Badge>
@@ -235,7 +329,15 @@ const ScriptGenerator = ({ trend, onBack }) => {
                   <Download className="w-4 h-4 mr-2" />
                   Export Script
                 </Button>
-                <Button className="w-full bg-gradient-to-r from-purple-600 to-blue-600">
+                <Button 
+                  className="w-full bg-gradient-to-r from-purple-600 to-blue-600"
+                  onClick={() => {
+                    setGeneratedContent(null);
+                    setSelectedTemplate('');
+                    setSelectedTone('');
+                    setCustomPrompt('');
+                  }}
+                >
                   Generate Another Version
                 </Button>
               </div>
@@ -279,7 +381,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
               </div>
               <div className="max-w-md mx-auto">
                 <Progress value={progress} className="h-3" />
-                <p className="text-sm text-gray-500 mt-2">{progress}% complete</p>
+                <p className="text-sm text-gray-500 mt-2">{Math.round(progress)}% complete</p>
               </div>
             </CardContent>
           </Card>
@@ -405,7 +507,7 @@ const ScriptGenerator = ({ trend, onBack }) => {
                 </CardHeader>
                 <CardContent>
                   <ul className="space-y-2">
-                    {trend.keyInsights.map((insight, index) => (
+                    {trend.keyInsights?.map((insight, index) => (
                       <li key={index} className="text-sm text-gray-600 flex items-start gap-2">
                         <Lightbulb className="w-3 h-3 text-purple-500 mt-0.5 flex-shrink-0" />
                         {insight}
@@ -415,14 +517,35 @@ const ScriptGenerator = ({ trend, onBack }) => {
                 </CardContent>
               </Card>
 
+              {/* Error Display */}
+              {error && (
+                <Card className="bg-red-50 border-red-200">
+                  <CardContent className="p-4">
+                    <div className="flex items-center gap-2">
+                      <AlertCircle className="w-4 h-4 text-red-500" />
+                      <span className="text-sm text-red-700">{error}</span>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Generate Button */}
               <Button 
                 onClick={generateContent}
-                disabled={!selectedTemplate || !selectedTone}
-                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-semibold"
+                disabled={!selectedTemplate || !selectedTone || isGenerating}
+                className="w-full bg-gradient-to-r from-purple-600 to-blue-600 hover:from-purple-700 hover:to-blue-700 h-12 text-lg font-semibold disabled:opacity-50"
               >
-                <Wand2 className="w-5 h-5 mr-2" />
-                Generate Script
+                {isGenerating ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Wand2 className="w-5 h-5 mr-2" />
+                    Generate Script
+                  </>
+                )}
               </Button>
             </div>
           </div>

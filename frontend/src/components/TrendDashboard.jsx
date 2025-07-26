@@ -5,38 +5,89 @@ import { Button } from './ui/button';
 import { Input } from './ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from './ui/tabs';
-import { mockTrends } from '../data/mockData';
 import TrendCard from './TrendCard';
-import { Search, Filter, TrendingUp, Zap, Clock, Target } from 'lucide-react';
+import apiService from '../services/api';
+import { Search, Filter, TrendingUp, Zap, Clock, Target, AlertCircle } from 'lucide-react';
 
 const TrendDashboard = ({ onTrendSelect }) => {
   const [trends, setTrends] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [selectedPlatform, setSelectedPlatform] = useState('all');
   const [sortBy, setSortBy] = useState('contentScore');
+  const [stats, setStats] = useState({
+    totalTrends: 0,
+    highPotential: 0,
+    averageScore: 0,
+    platforms: 4
+  });
 
+  // Load initial data
   useEffect(() => {
-    // Simulate loading trends
-    setTimeout(() => {
-      setTrends(mockTrends);
-    }, 1000);
+    loadTrends();
+    loadStats();
   }, []);
 
-  const filteredTrends = trends.filter(trend => {
-    const matchesSearch = trend.topic.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         trend.hashtags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesCategory = selectedCategory === 'all' || trend.category.toLowerCase() === selectedCategory;
-    const matchesPlatform = selectedPlatform === 'all' || trend.platform === selectedPlatform;
-    
-    return matchesSearch && matchesCategory && matchesPlatform;
-  });
+  // Filter trends when search or filters change
+  useEffect(() => {
+    const delayedSearch = setTimeout(() => {
+      loadTrends();
+    }, 500); // Debounce search
 
-  const sortedTrends = [...filteredTrends].sort((a, b) => {
-    if (sortBy === 'contentScore') return b.contentScore - a.contentScore;
-    if (sortBy === 'timeframe') return new Date(b.timeframe) - new Date(a.timeframe);
-    return 0;
-  });
+    return () => clearTimeout(delayedSearch);
+  }, [searchTerm, selectedCategory, selectedPlatform]);
+
+  const loadTrends = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const params = {
+        limit: 20,
+        page: 1
+      };
+
+      if (searchTerm.trim()) {
+        params.search = searchTerm.trim();
+      }
+      if (selectedCategory !== 'all') {
+        params.category = selectedCategory;
+      }
+      if (selectedPlatform !== 'all') {
+        params.platform = selectedPlatform;
+      }
+
+      const data = await apiService.getTrendingTopics(params);
+      
+      let trendsList = data.trends || [];
+      
+      // Client-side sorting
+      if (sortBy === 'contentScore') {
+        trendsList.sort((a, b) => b.contentScore - a.contentScore);
+      } else if (sortBy === 'timeframe') {
+        trendsList.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+      }
+
+      setTrends(trendsList);
+    } catch (err) {
+      console.error('Error loading trends:', err);
+      setError('Failed to load trends. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadStats = async () => {
+    try {
+      const statsData = await apiService.getPlatformStats();
+      setStats(statsData);
+    } catch (err) {
+      console.error('Error loading stats:', err);
+      // Keep default stats if API fails
+    }
+  };
 
   const getVelocityIcon = (velocity) => {
     switch (velocity) {
@@ -45,13 +96,6 @@ const TrendDashboard = ({ onTrendSelect }) => {
       case 'Steady Growth': return <Target className="w-4 h-4 text-blue-500" />;
       default: return <Clock className="w-4 h-4 text-gray-500" />;
     }
-  };
-
-  const stats = {
-    totalTrends: trends.length,
-    highPotential: trends.filter(t => t.contentScore >= 85).length,
-    averageScore: trends.length ? Math.round(trends.reduce((sum, t) => sum + t.contentScore, 0) / trends.length) : 0,
-    platforms: ['twitter', 'youtube', 'reddit', 'tiktok']
   };
 
   return (
@@ -111,7 +155,7 @@ const TrendDashboard = ({ onTrendSelect }) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-orange-100">Platforms</p>
-                  <p className="text-3xl font-bold">{stats.platforms.length}</p>
+                  <p className="text-3xl font-bold">{stats.platforms}</p>
                 </div>
                 <Filter className="w-8 h-8 text-orange-200" />
               </div>
@@ -148,6 +192,9 @@ const TrendDashboard = ({ onTrendSelect }) => {
                   <SelectItem value="technology">Technology</SelectItem>
                   <SelectItem value="business">Business</SelectItem>
                   <SelectItem value="lifestyle">Lifestyle</SelectItem>
+                  <SelectItem value="health">Health</SelectItem>
+                  <SelectItem value="finance">Finance</SelectItem>
+                  <SelectItem value="food">Food</SelectItem>
                 </SelectContent>
               </Select>
               
@@ -181,7 +228,7 @@ const TrendDashboard = ({ onTrendSelect }) => {
         <div className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-2xl font-bold text-gray-800">
-              Trending Now ({sortedTrends.length})
+              {loading ? 'Loading...' : `Trending Now (${trends.length})`}
             </h2>
             <div className="flex items-center gap-2 text-sm text-gray-500">
               <Clock className="w-4 h-4" />
@@ -189,8 +236,30 @@ const TrendDashboard = ({ onTrendSelect }) => {
             </div>
           </div>
           
-          {trends.length === 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {error && (
+            <Card className="bg-red-50 border-red-200">
+              <CardContent className="p-6">
+                <div className="flex items-center gap-3">
+                  <AlertCircle className="w-5 h-5 text-red-500" />
+                  <div>
+                    <h3 className="font-semibold text-red-800">Error Loading Trends</h3>
+                    <p className="text-red-700">{error}</p>
+                  </div>
+                  <Button 
+                    onClick={loadTrends}
+                    variant="outline"
+                    size="sm"
+                    className="ml-auto"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+          
+          {loading ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               {[1, 2, 3, 4].map((i) => (
                 <Card key={i} className="animate-pulse">
                   <CardContent className="p-6">
@@ -203,9 +272,34 @@ const TrendDashboard = ({ onTrendSelect }) => {
                 </Card>
               ))}
             </div>
+          ) : trends.length === 0 ? (
+            <Card className="bg-gray-50">
+              <CardContent className="p-12 text-center">
+                <Search className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">No Trends Found</h3>
+                <p className="text-gray-500">
+                  {searchTerm || selectedCategory !== 'all' || selectedPlatform !== 'all'
+                    ? 'Try adjusting your search criteria or filters.'
+                    : 'No trending topics available at the moment.'}
+                </p>
+                {(searchTerm || selectedCategory !== 'all' || selectedPlatform !== 'all') && (
+                  <Button 
+                    onClick={() => {
+                      setSearchTerm('');
+                      setSelectedCategory('all');
+                      setSelectedPlatform('all');
+                    }}
+                    variant="outline"
+                    className="mt-4"
+                  >
+                    Clear Filters
+                  </Button>
+                )}
+              </CardContent>
+            </Card>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {sortedTrends.map((trend) => (
+              {trends.map((trend) => (
                 <TrendCard
                   key={trend.id}
                   trend={trend}
